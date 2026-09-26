@@ -1,0 +1,17 @@
+{
+  ".": {
+    "upstreamCommit": "a8bfb147dcd173fa378687ae474ad152cd20f597",
+    "localModificationsIncluded": true,
+    "storage": "vendored source; no submodule clone required"
+  },
+  "third_party/texstudio": {
+    "upstreamCommit": "efc191c5d66ffcd0ca3b41b05b4f83a279b184ae",
+    "localModificationsIncluded": true,
+    "storage": "vendored source; no submodule clone required"
+  },
+  "third_party/poppler": {
+    "upstreamCommit": "d1f91ff9b4e26532b4bd3ce09048e236d27039e5",
+    "localModificationsIncluded": true,
+    "storage": "vendored source; no submodule clone required"
+  }
+}

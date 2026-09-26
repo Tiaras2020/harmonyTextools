@@ -1,0 +1,21 @@
+-prefix
+/home/tiarasubuntu2404/dev/texstudio-harmony-main-20260915/build/build-qt-ohos-install
+-xplatform
+ohos-clang
+-ohos-arch
+arm64-v8a
+-opensource
+-confirm-license
+-nomake
+tests
+-nomake
+examples
+-shared
+-silent
+-skip
+qtscript
+-device-option
+QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR
+-openssl-linked
+OPENSSL_INCDIR=/home/tiarasubuntu2404/dev/texstudio-harmony-main-20260915/build/biber-native/install/include
+OPENSSL_LIBS=/home/tiarasubuntu2404/dev/texstudio-harmony-main-20260915/build/biber-native/install/lib/libssl.a /home/tiarasubuntu2404/dev/texstudio-harmony-main-20260915/build/biber-native/install/lib/libcrypto.a -ldl -pthread -Wl,--exclude-libs,libssl.a:libcrypto.a

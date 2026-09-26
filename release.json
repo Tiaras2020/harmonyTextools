@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "version": "1.0.36",
+  "versionCode": 1000036,
+  "runtimeVersion": "1.0.30",
+  "resourceVersion": "tl2025-final-harmony-full-candidate-2",
+  "compatibilityId": "tl2025-harmony-baseline-1.0.5",
+  "formatKernel": "LaTeX2e <2026-06-01> pre-release-1 (develop 2026-9-15 branch)",
+  "l3Layer": "2026-01-19",
+  "biblatexVersion": "3.21",
+  "biberStatus": "Biber 2.21 offline workflow and cancellation device validated; startup/config warnings fixed in 1.0.19; remote HTTPS not device validated",
+  "texliveRepository": "https://mirrors.tuna.tsinghua.edu.cn/tex-historic-archive/systems/texlive/2025/tlnet-final/archive",
+  "policy": "Freeze the existing kernel, formats and runtime together. A new resource combination requires host and device regression.",
+  "luaStatus": "LuaHBTeX 1.21.0 and LuaLaTeX scoped device acceptance passed in 1.0.20; full collection-luatex not audited",
+  "luaFormatKernel": "LaTeX2e <2025-11-01>; L3 <2026-01-19>"
+}

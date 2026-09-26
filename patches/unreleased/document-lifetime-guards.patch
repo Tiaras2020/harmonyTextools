@@ -1,0 +1,61 @@
+--- a/third_party/texstudio/src/latexdocument.cpp
++++ b/third_party/texstudio/src/latexdocument.cpp
+@@ -105,7 +105,7 @@
+ 
+ bool LatexDocument::isHidden()
+ {
+-	return parent->hiddenDocuments.contains(this);
++	return parent && parent->hiddenDocuments.contains(this);
+ }
+ 
+ QFileInfo LatexDocument::getFileInfo() const
+@@ -1962,21 +1962,23 @@
+ 
+ QList<LatexDocument *>LatexDocument::getListOfDocs(QSet<LatexDocument *> *visitedDocs,bool onlyChildDocs)
+ {
+-    if(visitedDocs==nullptr && !lp->projectDocuments.isEmpty() && !onlyChildDocs){
+-        // return cached list of documents if available
+-        return lp->projectDocuments;
+-    }
++    // The parser is shared by related documents and can outlive any of them.
++    // Its raw-pointer cache was not invalidated on hide/purge/close, leaving
++    // completion and fileClose with destroyed documents. Walk the live owner
++    // registry instead; never dereference a cached document to test validity.
++	if (!parent) return {};
++	const auto liveDocuments = parent->getDocuments();
+ 	QList<LatexDocument *>listOfDocs;
+ 	bool deleteVisitedDocs = false;
+ 	if (parent->masterDocument) {
+-		listOfDocs = parent->getDocuments();
++		listOfDocs = liveDocuments;
+ 	} else {
+ 		LatexDocument *master = this;
+ 		if (!visitedDocs) {
+ 			visitedDocs = new QSet<LatexDocument *>();
+ 			deleteVisitedDocs = true;
+ 		}
+-		foreach (LatexDocument *elem, parent->getDocuments()) { // check children
++		foreach (LatexDocument *elem, liveDocuments) { // check children
+ 			if (elem != master && !master->childDocs.contains(elem)) continue;
+ 
+ 			if (visitedDocs && !visitedDocs->contains(elem)) {
+@@ -1985,7 +1987,7 @@
+                 listOfDocs << elem->getListOfDocs(visitedDocs,onlyChildDocs);
+ 			}
+ 		}
+-        if (masterDocument && !onlyChildDocs) { //check masters
++        if (masterDocument && liveDocuments.contains(masterDocument) && !onlyChildDocs) { //check live masters
+ 			master = masterDocument;
+ 			if (!visitedDocs->contains(master))
+ 				listOfDocs << master->getListOfDocs(visitedDocs);
+@@ -1994,10 +1996,6 @@
+     if (deleteVisitedDocs){
+         // top level of recursion
+ 		delete visitedDocs;
+-        // save cache
+-        if(!onlyChildDocs){
+-            lp->projectDocuments=listOfDocs;
+-        }
+     }
+ 	return listOfDocs;
+ }

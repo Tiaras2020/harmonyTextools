@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "repository": "https://mirrors.tuna.tsinghua.edu.cn/tex-historic-archive/systems/texlive/2025/tlnet-final",
+  "metadataSha256": "56df038e9070a3d587eeceb5def3f154b2cacccef36d4295bb49e0618977c34a",
+  "year": "2025",
+  "roots": [
+    "scheme-full"
+  ],
+  "nativeProviders": [
+    "pdftex",
+    "xetex",
+    "bibtex",
+    "makeindex",
+    "dvips",
+    "dvipdfmx",
+    "kpathsea"
+  ],
+  "blockedCollections": {
+    "collection-context": "ConTeXt and its runtime are not ported",
+    "collection-luatex": "Full collection not audited; pinned LuaLaTeX subset shipped and device validated with LuaHBTeX 1.21.0",
+    "collection-metapost": "MetaPost runtime is not validated",
+    "collection-texworks": "Desktop editor is not part of this application"
+  },
+  "requiresTools": {
+    "minted": [
+      "Python",
+      "latexminted",
+      "Pygments"
+    ],
+    "pythontex": [
+      "Python"
+    ],
+    "latexmk": [
+      "Perl"
+    ],
+    "biber": [
+      "Biber"
+    ],
+    "asymptote": [
+      "Asymptote"
+    ],
+    "sagetex": [
+      "SageMath"
+    ],
+    "gnuplottex": [
+      "gnuplot"
+    ],
+    "auto-pst-pdf": [
+      "Ghostscript",
+      "shell execution"
+    ],
+    "pstool": [
+      "Perl",
+      "Ghostscript"
+    ],
+    "svg": [
+      "Inkscape"
+    ],
+    "dot2texi": [
+      "dot2tex",
+      "Graphviz"
+    ],
+    "tikzexternal": [
+      "shell execution"
+    ],
+    "luapackageloader": [
+      "LuaTeX"
+    ],
+    "lua-unicode-math": [
+      "LuaTeX"
+    ]
+  },
+  "conditional": {
+    "biblatex": "Freeze biblatex 3.21 with native Biber 2.21; resource-only upgrades need compatibility validation",
+    "glossaries": "makeindex path only; Perl makeglossaries and xindy unavailable",
+    "epstopdf-pkg": "automatic EPS conversion requires Ghostscript; use preconverted PDF",
+    "pgf": "ordinary PDF drawing; externalization requires separately validated shell tools",
+    "pstricks": "PostScript workflows require separately validated conversion tools",
+    "fontspec": "XeLaTeX path only; LuaLaTeX unavailable",
+    "beamer": "PDF output tested; EPS conversion tools not added",
+    "pgfplots": "TeX backend only; Lua, externalization and external contour tools not supported",
+    "newpx": "Type1 fonts tested separately from XeLaTeX fontspec features"
+  },
+  "allowedPrefixes": [
+    "tex/latex/",
+    "tex/generic/",
+    "tex/plain/",
+    "tex/xelatex/",
+    "tex/xetex/",
+    "bibtex/",
+    "makeindex/",
+    "fonts/"
+  ],
+  "blockedPrefixes": [
+    "tex/latex/base/",
+    "tex/latex/latexconfig/",
+    "tex/latex/l3",
+    "fonts/conf/"
+  ],
+  "allowedExtensions": [
+    "sty",
+    "cls",
+    "tex",
+    "def",
+    "fd",
+    "cfg",
+    "clo",
+    "ltx",
+    "ldf",
+    "cld",
+    "bbx",
+    "cbx",
+    "lbx",
+    "dbx",
+    "bbx",
+    "bst",
+    "bib",
+    "ist",
+    "xdy",
+    "tfm",
+    "vf",
+    "pfb",
+    "afm",
+    "enc",
+    "map",
+    "otf",
+    "ttf",
+    "ttc",
+    "pfm",
+    "sfd",
+    "dat",
+    "tec",
+    "pro",
+    "cmap",
+    "mkii",
+    "txt"
+  ],
+  "limits": {
+    "maxExpandedBytes": 8589934592,
+    "maxFileBytes": 268435456,
+    "reserveBytes": 1073741824
+  },
+  "supportClaim": "Static resource compatibility candidates, not proof that every package feature works; native programs and unknown execution requirements are held back.",
+  "reviewedResourceExtensions": {
+    "tex/latex/beamer/": [
+      "pdf",
+      "eps"
+    ],
+    "tex/latex/newpx/": [
+      "fontspec"
+    ],
+    "tex/latex/translator/": [
+      "dict"
+    ]
+  },
+  "reviewedPackages": {
+    "beamer": {
+      "features": [
+        "pdfLaTeX/XeLaTeX slides with bundled PDF icons"
+      ]
+    },
+    "pgfplots": {
+      "features": [
+        "pdfLaTeX/XeLaTeX native TeX plotting; pgfplotstable"
+      ],
+      "omitPrefixes": {
+        "scripts/pgfplots/": "External MATLAB/Python/shell utilities are not supported",
+        "tex/context/third/pgfplots/": "ConTeXt backend not supported",
+        "tex/generic/pgfplots/lua/": "Lua backend not supported; ordinary TeX backend retained"
+      }
+    },
+    "newpx": {
+      "features": [
+        "Type1 text/math fonts; reviewed fontspec data file"
+      ]
+    },
+    "translator": {
+      "features": [
+        "Beamer language dictionaries"
+      ]
+    }
+  }
+}

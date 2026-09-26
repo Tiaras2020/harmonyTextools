@@ -1,0 +1,264 @@
+void Texstudio::harmonyAutomationSession()
+{
+#ifdef Q_OS_OHOS
+    if (harmonyProjectPanel) { harmonyProjectPanel->show(); harmonyProjectPanel->raise(); return; }
+    const QString initial = QFileInfo(documents.getTemporaryCompileFileName()).canonicalFilePath();
+    if (initial.isEmpty()) { QMessageBox::information(this, QStringLiteral("CLI 会话"), QStringLiteral("请先打开一个已保存的工程文件。")); return; }
+    QFileDialog picker(this, QStringLiteral("选择允许 CLI 访问的工程目录"), QFileInfo(initial).absolutePath());
+    picker.setOption(QFileDialog::DontUseNativeDialog); picker.setOption(QFileDialog::ShowDirsOnly);
+    picker.setFileMode(QFileDialog::Directory); picker.selectFile(".");
+    picker.setLabelText(QFileDialog::Accept,QStringLiteral("授权此目录"));
+    picker.setLabelText(QFileDialog::Reject,QStringLiteral("取消"));
+    fitHarmonyDialog(&picker,64,28);
+    if(picker.exec()!=QDialog::Accepted||picker.selectedFiles().isEmpty())return;
+    const QString selected = picker.selectedFiles().first();
+    if (selected.isEmpty()) return;
+    auto *s = new HarmonyProject::Session(this);
+    s->root = QFileInfo(selected).canonicalFilePath();
+    if (s->root.isEmpty() || !s->server.start()) { delete s; return; }
+    harmonyProjectPanel = s;
+    const QString relative = QDir(s->root).relativeFilePath(initial);
+    if (!HarmonyProject::resolve(s->root,relative).isEmpty() && QFileInfo(initial).suffix().toLower()=="tex") s->master=relative;
+    s->setWindowTitle(QStringLiteral("工程 CLI 会话（关闭即撤销授权）"));
+    auto *layout = new QVBoxLayout(s);
+    auto *description = new QLabel(QStringLiteral("授权工程：%1\n支持文件列表、读取、打开、切换主文件、构建、任务日志和 PDF 摘要。\n不会保存未保存的编辑；构建会运行工程中的 TeX/Lua 代码。\n这是非模态面板，可继续操作编辑器。连接成功后自动收起到左侧 CLI；关闭会话才撤销授权。").arg(s->root),s);
+    description->setWordWrap(true); description->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum); layout->addWidget(description);
+    auto *status = new QLabel(QStringLiteral("等待连接；主文件：")+s->master,s); layout->addWidget(status);
+    auto *buttons = new QDialogButtonBox(s);
+    auto *exportButton = buttons->addButton(QStringLiteral("导出连接文件…"),QDialogButtonBox::ActionRole);
+    auto *cancelButton = buttons->addButton(QStringLiteral("取消构建"),QDialogButtonBox::ActionRole);
+    auto *closeButton = buttons->addButton(QStringLiteral("关闭会话"),QDialogButtonBox::RejectRole);
+    layout->addStretch(); layout->addWidget(buttons);
+    connect(closeButton,&QPushButton::clicked,s,&QDialog::reject);
+    connect(cancelButton,&QPushButton::clicked,s,[s]() { if(s->running) {s->jobs[s->currentJob].cancelled=true; if(auto *p=qobject_cast<ProcessX *>(s->activeProcess.data()))p->cancel();} });
+    connect(exportButton,&QPushButton::clicked,s,[s]() {
+        const QString path=FileDialog::getSaveFileName(s,QStringLiteral("保存 CLI 连接文件"),"texstudio-session.json",QStringLiteral("JSON (*.json)"));
+        if(path.isEmpty()) return;
+        QSaveFile file(path);
+        const QByteArray bytes=QJsonDocument(QJsonObject{{"protocol",1},{"host","127.0.0.1"},{"port",int(s->server.serverPort())},{"token",s->server.token},{"appVersion",HARMONY_TEX_VERSION},{"projectRoot",s->root},{"help",harmonyCliHelp()}}).toJson();
+        if(!file.open(QIODevice::WriteOnly)||file.write(bytes)!=bytes.size()||!file.commit()) QMessageBox::warning(s,QStringLiteral("导出失败"),file.errorString());
+    });
+    connect(&buildManager,&BuildManager::beginRunningSubCommand,s,[s](ProcessX *p,const QString &,const QString &,const RunCommandFlags &) {
+        if(!s->running) return;
+        const QString id=s->currentJob;
+        s->activeProcess=p;
+        connect(p,&ProcessX::startedX,s,[s,p,id](){if(s->jobs.contains(id)&&s->jobs[id].cancelled)p->cancel();});
+        p->setShowStdout(true);
+        auto append=[s,id](const QString &text){if(s->jobs.contains(id))s->jobs[id].append(text);};
+        connect(p,&ProcessX::standardOutputRead,s,append); connect(p,&ProcessX::standardErrorRead,s,append);
+    });
+    connect(&buildManager,&BuildManager::endRunningSubCommand,s,[s](ProcessX *p,const QString &,const QString &,const RunCommandFlags &) {
+        if(!s->running)return;
+        if(s->activeProcess==p)s->activeProcess.clear();
+        auto &j=s->jobs[s->currentJob];
+        if(p->wasCancelled())j.cancelled=true;
+        if(p->exitStatus()!=QProcess::NormalExit)j.exitCode=-1;
+        else if(p->exitCode()!=0)j.exitCode=p->exitCode();
+    });
+    auto projectDocuments=[this,s](bool refresh)->QJsonArray {
+        QJsonArray entries;
+        for(LatexEditorView *v:editors->editors()) {
+            const QString path=HarmonyProject::documentPath(s->root,v->document->getFileName());
+            if(path.isEmpty())continue;
+            if(refresh)v->editor->refreshExternalChanges();
+            entries.append(QJsonObject{{"path",path},{"modified",v->editor->isContentModified()},
+                {"conflict",v->editor->isInConflict()},{"exists",QFileInfo(v->document->getFileName()).exists()},{"master",path==s->master}});
+        }
+        return entries;
+    };
+    auto blockers=[projectDocuments]()->QJsonArray {
+        QJsonArray result;
+        for(const QJsonValue &v:projectDocuments(true)) {
+            const auto entry=v.toObject();
+            if(entry.value("modified").toBool()||entry.value("conflict").toBool())result.append(entry);
+        }
+        return result;
+    };
+    connect(s,&QObject::destroyed,this,[this](){if(harmonyCliStatus)harmonyCliStatus->setText(QStringLiteral("未连接"));});
+    s->server.dispatch=[this,s,status,closeButton,exportButton,projectDocuments,blockers](const QJsonObject &r)->QJsonObject {
+        QScopedValueRollback<bool> background(harmonyBackgroundOperation,true);
+        if(!s->connected) {
+            s->connected=true;
+            harmonyCliStatus->setText(QStringLiteral("已连接\n工程：%1").arg(s->root));
+            QTimer::singleShot(0,s,[s](){s->hide();});
+        }
+        auto error=[](const QString &e)->QJsonObject{return {{"ok",false},{"error",e}};};
+        const QString cmd=r.value("command").toString();
+        auto rel=[s](const QString &path){return QDir(s->root).relativeFilePath(path);};
+        auto busy=[this,s](){return s->running||getManagedAction("main/tools/stopcompile")->isEnabled();};
+        if(cmd=="help")return {{"ok",true},{"help",harmonyCliHelp()}};
+        if(cmd=="capabilities")return {{"ok",true},{"protocol",1},{"scope","project"},{"version",HARMONY_TEX_VERSION},
+            {"commands",QJsonArray{"help","capabilities","status","project.info","files.list","documents.list","document.read","document.reload","document.open","master.set","project.refresh","build","build.clean","job.status","job.logs","logs","diagnostics","artifact.info","cancel","resources"}},
+            {"okMeaning","request_succeeded_not_build_succeeded"},{"externalRefresh","content-hash polling and preflight"},{"preflightScope","authorized_project_buffers"},{"foregroundActivation",false},{"writes",false},{"jobHistoryLimit",20},{"logOffsetUnit","UTF-16 code units"},{"aiHttpsCompiled",bool(QT_CONFIG(ssl))},{"spellMode","Han skipped; alphabetic runs checked"}};
+        if(cmd=="project.info")return {{"ok",true},{"root",s->root},{"master",s->master},{"version",HARMONY_TEX_VERSION}};
+        if(cmd=="status") {
+            QJsonObject value=s->currentJob.isEmpty()?QJsonObject{{"ok",true},{"state","idle"}}:s->jobs[s->currentJob].status();
+            value.insert("busy",busy());value.insert("project",s->root);value.insert("master",s->master);return value;
+        }
+        if(cmd=="resources") {
+            QProcessEnvironment env; HarmonyResources::configure(env,ohosBundledTexRoot(),HarmonyResources::storageRoot(),HarmonyResources::sessionResource());
+            QJsonObject paths; for(const QString &key:QStringList{"TEXINPUTS","LUAINPUTS","TEXMFHOME","TEXMFVAR"})paths.insert(key,env.value(key));
+            return {{"ok",true},{"runtimeVersion",HARMONY_RUNTIME_VERSION},{"userEnabled",HarmonyResources::userEnabled(HarmonyResources::storageRoot())},{"paths",paths}};
+        }
+        if(cmd=="files.list") {
+            const QString path=HarmonyProject::resolve(s->root,r.value("path").toString("."),true);
+            if(path.isEmpty())return error("invalid_directory");
+            const auto files=QDir(path).entryInfoList(QDir::Files|QDir::Dirs|QDir::NoDotAndDotDot|QDir::NoSymLinks,QDir::DirsFirst|QDir::Name);
+            const int offset=r.value("offset").toInt(0),limit=r.value("limit").toInt(100);
+            if(offset<0||limit<1||limit>500)return error("invalid_range");
+            QJsonArray entries;
+            for(int i=offset;i<files.size() && i-offset<limit;++i){const auto &f=files[i];entries.append(QJsonObject{{"path",rel(f.absoluteFilePath())},{"directory",f.isDir()},{"bytes",double(f.size())},{"readable",f.isFile()&&HarmonyProject::textFile(f.fileName())}});}
+            return {{"ok",true},{"entries",entries},{"total",files.size()},{"nextOffset",offset+entries.size()<files.size()?offset+entries.size():-1}};
+        }
+        if(cmd=="document.reload") {
+            if(busy())return error("busy");
+            const QString requested=r.value("path").toString();
+            if(!HarmonyProject::textFile(requested))return error("invalid_text_path");
+            QString pathFailure;
+            const QString path=HarmonyProject::resolve(s->root,requested,false,&pathFailure);
+            if(path.isEmpty()) {
+                auto result=error(pathFailure);
+                if(pathFailure=="file_missing")result.insert("recoveryHint",QStringLiteral("工程内文件已不存在，请恢复磁盘文件后重试；编辑器缓冲区不会因此被清空。"));
+                return result;
+            }
+            auto *v=getEditorViewFromFileName(path);
+            if(!v)return error("document_not_open");
+            if((r.contains("discardLocal")&&!r.value("discardLocal").isBool()) ||
+               (r.contains("expectedRevision")&&!r.value("expectedRevision").isString()))return error("invalid_parameters");
+            const bool dirty=v->editor->isContentModified();
+            const QString previous=HarmonyProject::digest(v->document->text().toUtf8());
+            const QString failure=v->editor->reloadExternal(r.value("discardLocal").toBool(),r.value("expectedRevision").toString());
+            QJsonObject result{{"ok",failure.isEmpty()},{"path",rel(path)},
+                {"modified",v->editor->isContentModified()},{"conflict",v->editor->isInConflict()},
+                {"revision",HarmonyProject::digest(v->document->text().toUtf8())}};
+            if(!failure.isEmpty()) {
+                result.insert("error",failure);
+                result.insert("recoveryHint",QStringLiteral("先用 document.read 查看当前缓冲区并保留需要的编辑；明确以磁盘为准时，使用 document.reload --discard-local --expected-revision REV。文件缺失或无法读取时先恢复磁盘文件。"));
+            } else result.insert("discardedLocalChanges",dirty&&previous!=result.value("revision").toString());
+            return result;
+        }
+        // Refresh before exposing buffers or selecting a build. Never save here.
+        if(QStringList{"project.refresh","documents.list","document.read","document.open","master.set","build","build.clean"}.contains(cmd)) {
+            projectDocuments(true);
+        }
+        if(cmd=="documents.list"||cmd=="project.refresh")return {{"ok",true},{"documents",projectDocuments(false)}};
+        if(cmd=="document.read"||cmd=="document.open"||cmd=="master.set") {
+            const QString requested=r.value("path").toString();
+            if(!HarmonyProject::textFile(requested))return error("invalid_text_path");
+            QString pathFailure;
+            const QString path=HarmonyProject::resolve(s->root,requested,false,&pathFailure);
+            if(path.isEmpty()) {
+                auto result=error(pathFailure);
+                if(pathFailure=="file_missing")result.insert("recoveryHint",QStringLiteral("工程内文件已不存在，请恢复磁盘文件后重试；编辑器缓冲区不会因此被清空。"));
+                return result;
+            }
+            if(QFileInfo(path).size()>4*1024*1024)return error("file_too_large");
+            LatexEditorView *v=getEditorViewFromFileName(path);
+            if(cmd=="document.read") {
+                QFile file(path);if(!file.open(QIODevice::ReadOnly))return error("read_failed");const QByteArray bytes=file.readAll();
+                QString text,encoding;
+                if(v){text=v->document->text();encoding=QString::fromLatin1(v->document->codec()->name());}
+                else {QTextCodec::ConverterState state;text=QTextCodec::codecForName("UTF-8")->toUnicode(bytes.constData(),bytes.size(),&state);if(state.invalidChars||bytes.contains('\0'))return error("open_in_editor_for_encoding");encoding="UTF-8";}
+                if(text.size()>4*1024*1024)return error("buffer_too_large");
+                const int start=r.value("start").toInt(1),count=r.value("count").toInt(200);
+                if(start<1||count<1||count>2000)return error("invalid_range");
+                const QStringList lines=text.split('\n');
+                const QString part=lines.mid(qMin(start-1,lines.size()),count).join('\n');
+                if(part.toUtf8().size()>256*1024)return error("response_too_large");
+                return {{"ok",true},{"path",rel(path)},{"text",part},{"start",start},{"lineCount",lines.size()},{"encoding",encoding},
+                    {"buffer",bool(v)},{"modified",v&&v->editor->isContentModified()},{"conflict",v&&v->editor->isInConflict()},
+                    {"revision",HarmonyProject::digest(text.toUtf8())},{"diskSha256",HarmonyProject::digest(bytes)}};
+            }
+            if(busy())return error("busy");
+            if(QFileInfo(path).suffix().toLower()!="tex")return error("open_requires_tex");
+            if(!v)v=load(path,false,false,true);else load(path,false,false,true);
+            if(!v)return error("open_failed");
+            if(cmd=="master.set"){s->master=rel(path);documents.setMasterDocument(v->document);status->setText(QStringLiteral("主文件：")+s->master);}
+            return {{"ok",true},{"path",rel(path)},{"modified",v->editor->isContentModified()}};
+        }
+        if(QStringList{"job.status","job.logs","logs","diagnostics","artifact.info","cancel"}.contains(cmd)) {
+            const QString id=r.value("job").toString(s->currentJob);
+            if(!s->jobs.contains(id))return error("unknown_job");
+            auto &j=s->jobs[id];
+            if(cmd=="job.status")return j.status();
+            if(cmd=="cancel") {
+                if(id!=s->currentJob||!s->running)return error("job_not_running");
+                j.cancelled=true;if(auto *p=qobject_cast<ProcessX *>(s->activeProcess.data()))p->cancel();return {{"ok",true},{"job",id},{"state","cancelling"}};
+            }
+            if(cmd=="logs")return {{"ok",true},{"job",id},{"state",j.state},{"tail",j.log.right(65536)}};
+            if(cmd=="job.logs") {
+                const int offset=r.value("offset").toInt(0),limit=r.value("limit").toInt(16384);
+                if(offset<0||limit<1||limit>65536||offset>j.logStart+j.log.size())return error("invalid_range");
+                const qint64 begin=qMax(qint64(offset),j.logStart);const QString chunk=j.log.mid(int(begin-j.logStart),limit);
+                return {{"ok",true},{"job",id},{"state",j.state},{"text",chunk},{"offset",double(begin)},{"nextOffset",double(begin+chunk.size())},{"truncated",offset<j.logStart}};
+            }
+            if(cmd=="diagnostics")return HarmonyProject::diagnostics(j,s->root);
+            const QString pdf=QFileInfo(j.master).path()+'/'+QFileInfo(j.master).completeBaseName()+".pdf";
+            const QString safe=HarmonyProject::resolve(s->root,QDir::cleanPath(pdf));
+            const QString current=safe.isEmpty()?QString():HarmonyProject::fileDigest(safe);
+            return {{"ok",true},{"job",id},{"path",QDir::cleanPath(pdf)},{"exists",!safe.isEmpty()},
+                {"sha256AtCompletion",j.pdfAfter},{"currentSha256",current},{"changedDuringJob",!j.pdfAfter.isEmpty()&&j.pdfBefore!=j.pdfAfter},
+                {"matchesCompletedJob",!j.pdfAfter.isEmpty()&&current==j.pdfAfter},{"buildSucceeded",j.state=="succeeded"},
+                {"provenance",j.pdfBefore==j.pdfAfter?"unchanged_or_not_proven":"changed_during_job"}};
+        }
+        if(cmd!="build"&&cmd!="build.clean")return error("unsupported_command");
+        if(busy())return error("busy");
+        const QString master=r.value("path").toString(s->master);
+        const QString path=HarmonyProject::resolve(s->root,master);
+        if(path.isEmpty()||QFileInfo(path).suffix().toLower()!="tex")return error("invalid_master");
+        const QString engine=r.value("engine").toString();
+        if(!QStringList{"pdflatex","xelatex","lualatex"}.contains(engine))return error("unsupported_engine");
+        const QJsonArray blocked=blockers();
+        if(!blocked.isEmpty())return {{"ok",false},{"error","unsaved_edits"},{"scope","authorized_project_buffers"},{"blockers",blocked},{"recoveryHint",QStringLiteral("先读取 blockers 中的文件并保留所需编辑。可在应用内保存/重载；明确以磁盘为准时调用 document.reload --discard-local --expected-revision REV，REV 来自 document.read。缺失文件须先恢复。不要自动丢弃编辑。")}};
+        LatexEditorView *view=load(path,false,false,true);if(!view)return error("open_failed");
+        documents.setMasterDocument(view->document);s->master=rel(path);
+        if(QFileInfo(documents.getTemporaryCompileFileName()).canonicalFilePath()!=path)return error("master_resolution_mismatch");
+        HarmonyProject::Job j;j.id=QUuid::createUuid().toString(QUuid::WithoutBraces);j.master=s->master;j.engine=engine;j.started=QDateTime::currentDateTimeUtc();j.cleanRebuild=cmd=="build.clean";
+        const QString pdf=QFileInfo(path).absolutePath()+'/'+QFileInfo(path).completeBaseName()+".pdf";
+        const QString safeBefore=HarmonyProject::resolve(s->root,rel(pdf));
+        if(!safeBefore.isEmpty())j.pdfBefore=HarmonyProject::fileDigest(safeBefore);
+        if(j.cleanRebuild) {
+            const QString cache=QFileInfo(path).absolutePath()+'/'+QFileInfo(path).completeBaseName()+".fdb_latexmk";
+            if(QFileInfo(cache).exists()||QFileInfo(cache).isSymLink()) {
+                const QString safe=HarmonyProject::resolve(s->root,rel(cache));
+                if(safe.isEmpty())return error("unsafe_cache_path");
+                if(!QFile::remove(safe))return error("cache_remove_failed");
+            }
+        }
+        s->jobs.insert(j.id,j);s->order<<j.id;while(s->order.size()>20)s->jobs.remove(s->order.takeFirst());s->currentJob=j.id;s->running=true;
+        closeButton->setEnabled(false);exportButton->setEnabled(false);
+        QTimer::singleShot(0,s,[this,s,status,closeButton,exportButton,pdf,path,blockers]() {
+            auto &job=s->jobs[s->currentJob];
+            QScopedValueRollback<bool> background(harmonyBackgroundOperation,true);
+            job.blockers=blockers();
+            if(!job.blockers.isEmpty()){job.state="failed";job.exitCode=-1;job.append("Unsaved edits or external conflict in authorized project before build\n");}
+            else if(job.cancelled)job.state="cancelled";
+            else if(QFileInfo(documents.getTemporaryCompileFileName()).canonicalFilePath()!=path){job.state="failed";job.exitCode=-1;job.append("Master changed before build\n");}
+            else {
+                job.state="running";harmonyCliStatus->setText(QStringLiteral("正在构建：")+job.master);status->setText(QStringLiteral("正在构建：")+job.master);
+                const QString flag=job.engine=="pdflatex"?"-pdf":"-"+job.engine;
+                // latexmk owns bibliography and reruns. Desktop precompile hooks can
+                // otherwise run another engine/BibTeX from stale GUI log state.
+                const bool ok=buildManager.runCommand(QStringLiteral("txs:///latexmk/{-pdf}{-silent}[%1][-interaction=nonstopmode][-halt-on-error][-file-line-error]%2").arg(flag,job.cleanRebuild?"[-g]":""),QFileInfo(path),QFileInfo(path),1,nullptr,nullptr,nullptr,false);
+                job.state=job.cancelled?"cancelled":(ok&&job.exitCode==0?"succeeded":"failed");
+            }
+            // Capture now, so later jobs cannot overwrite this task's diagnostics.
+            const QString logPath=QFileInfo(path).absolutePath()+'/'+QFileInfo(path).completeBaseName()+".log";
+            const QString safeLog=HarmonyProject::resolve(s->root,QDir(s->root).relativeFilePath(logPath));
+            if(!safeLog.isEmpty()&&job.log.contains("Transcript written on ")) {
+                QFile file(safeLog);
+                if(file.size()<=2*1024*1024&&file.open(QIODevice::ReadOnly)) {
+                    job.finalLog=QString::fromUtf8(file.readAll());job.finalLogAvailable=true;
+                }
+            }
+            job.finished=QDateTime::currentDateTimeUtc();
+            const QString safe=HarmonyProject::resolve(s->root,QDir(s->root).relativeFilePath(pdf));
+            if(!safe.isEmpty())job.pdfAfter=HarmonyProject::fileDigest(safe);
+            harmonyCliStatus->setText(QStringLiteral("已连接 · %1\n%2").arg(job.state,job.master));
+            s->running=false;closeButton->setEnabled(true);exportButton->setEnabled(true);status->setText(QStringLiteral("构建状态：")+job.state);
+        });
+        return j.status();
+    };
+    fitHarmonyDialog(s,62,15);s->show();
+#endif
+}

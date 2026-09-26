@@ -1,0 +1,42 @@
+{
+  "release": "v1.0.36",
+  "originalRoot": "/home/tiarasubuntu2404/dev/texstudio-harmony-main-20260915",
+  "originalToolHome": "/home/tiarasubuntu2404/ohos-commandline-tools-6.1.1.280/command-line-tools",
+  "assets": [
+    {
+      "name": "harmony-legacy-texstudio-source.tar.gz",
+      "kind": "legacy-source",
+      "bytes": 121388660,
+      "sha256": "1c69f8d33ef26808b12be67803a99d29cf5a445aa2c349756df7e84f0fe8a734",
+      "url": "https://github.com/Tiaras2020/harmonyTextools/releases/download/v1.0.36/harmony-legacy-texstudio-source.tar.gz"
+    },
+    {
+      "name": "harmony-native-deps-1.0.36.tar.gz",
+      "kind": "native-deps",
+      "bytes": 109047191,
+      "sha256": "a80202cc0d599c4b402f31b54cb619284ae95eb6d755936155e2e8109153f93b",
+      "url": "https://github.com/Tiaras2020/harmonyTextools/releases/download/v1.0.36/harmony-native-deps-1.0.36.tar.gz"
+    },
+    {
+      "name": "harmony-patched-sources-1.0.36.tar.gz",
+      "kind": "patched-sources",
+      "bytes": 1313702165,
+      "sha256": "d19dd940e6556e5dc59b0a8e445fe90d1b2bd9ee6f7cdefc9a42e92ef933353c",
+      "url": "https://github.com/Tiaras2020/harmonyTextools/releases/download/v1.0.36/harmony-patched-sources-1.0.36.tar.gz"
+    },
+    {
+      "name": "texlive-1.0.30.hnp",
+      "kind": "runtime",
+      "bytes": 1407269995,
+      "sha256": "3364a37e83715bb163ef5c560055ea328c9f6f55ea94d842913c9e65cd089106",
+      "url": "https://github.com/Tiaras2020/harmonyTextools/releases/download/v1.0.36/texlive-1.0.30.hnp"
+    },
+    {
+      "name": "TeXstudioHarmony-1.0.36-arm64-device-signed.hap",
+      "kind": "signed-app",
+      "bytes": 1494567624,
+      "sha256": "51e07585d7a8a038a1cafeede05d1c5e94fb4c8b4de54f3ac459a9642d91083d",
+      "url": "https://github.com/Tiaras2020/harmonyTextools/releases/download/v1.0.36/TeXstudioHarmony-1.0.36-arm64-device-signed.hap"
+    }
+  ]
+}
