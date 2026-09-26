@@ -1,0 +1,42 @@
+{
+  "releaseId": 397177470,
+  "method": "GitHub stored asset SHA256 and size compared to local files",
+  "assets": [
+    {
+      "name": "harmony-legacy-texstudio-source.tar.gz",
+      "bytes": 121388660,
+      "digest": "sha256:1c69f8d33ef26808b12be67803a99d29cf5a445aa2c349756df7e84f0fe8a734",
+      "verified": true
+    },
+    {
+      "name": "harmony-native-deps-1.0.36.tar.gz",
+      "bytes": 109047191,
+      "digest": "sha256:a80202cc0d599c4b402f31b54cb619284ae95eb6d755936155e2e8109153f93b",
+      "verified": true
+    },
+    {
+      "name": "harmony-patched-sources-1.0.36.tar.gz",
+      "bytes": 1313702165,
+      "digest": "sha256:d19dd940e6556e5dc59b0a8e445fe90d1b2bd9ee6f7cdefc9a42e92ef933353c",
+      "verified": true
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 513,
+      "digest": "sha256:834d298f1db1fab87f43926c6c108bd2da26057ab5cf55c7f5d74bad0f4e122a",
+      "verified": true
+    },
+    {
+      "name": "texlive-1.0.30.hnp",
+      "bytes": 1407269995,
+      "digest": "sha256:3364a37e83715bb163ef5c560055ea328c9f6f55ea94d842913c9e65cd089106",
+      "verified": true
+    },
+    {
+      "name": "TeXstudioHarmony-1.0.36-arm64-device-signed.hap",
+      "bytes": 1494567624,
+      "digest": "sha256:51e07585d7a8a038a1cafeede05d1c5e94fb4c8b4de54f3ac459a9642d91083d",
+      "verified": true
+    }
+  ]
+}
