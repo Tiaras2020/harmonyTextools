@@ -12,6 +12,7 @@ bash "$ROOT/scripts/texstudio/build_texstudio.sh"
 if [[ "${1:-}" == --core-only ]]; then exit 0; fi
 bash "$ROOT/scripts/common/copy_libs_entry.sh"
 cp "$NATIVE_OHOS_SDK/llvm/lib/aarch64-linux-ohos/libc++_shared.so" "$ROOT/texstudio_harmony/entry/libs/arm64-v8a/"
+printf "sdk.dir=%s\n" "$TOOL_HOME/sdk" > "$ROOT/texstudio_harmony/local.properties"
 cd "$ROOT/texstudio_harmony"
 ohpm install
 hvigorw --mode module -p module=entry@default -p product=default -p requiredDeviceType=2in1 assembleHap --no-daemon

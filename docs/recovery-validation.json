@@ -1,0 +1,12 @@
+{
+  "remoteCloneCommit": "3461f2a0a780375410d215c25a9b2403d0da32cf",
+  "compiledSourceFilesCompared": 4283,
+  "differences": [],
+  "coreRebuild": "passed",
+  "fullPackage": "passed",
+  "functionalDeviceTests": "not_run",
+  "scope": "Relocated application build using release native dependencies and installed SDK; not full Qt/TeX toolchain rebuild.",
+  "embeddedRuntimeSha256": "3364a37e83715bb163ef5c560055ea328c9f6f55ea94d842913c9e65cd089106",
+  "packageVersion": "1.0.36",
+  "packageVersionCode": 1000036
+}
